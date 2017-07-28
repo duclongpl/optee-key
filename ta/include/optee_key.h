@@ -33,6 +33,6 @@
 		{ 0xab, 0xe2, 0x00, 0x02, 0xa5, 0xd5, 0xc5, 0x1b} }
 
 /* The Trusted Application Function ID(s) implemented in this TA */
-#define TA_HELLO_WORLD_CMD_INC_VALUE	0
+#define TA_OPTEE_KEY_CMD_GET_KEY	0
 
 #endif /*TA_HELLO_WORLD_H*/

@@ -32,6 +32,8 @@
 
 #include "optee_key.h"
 
+#include <string.h>
+#include <stdlib.h>
 /*
  * Called when the instance of the TA is created. This is the first call in
  * the TA.
@@ -95,18 +97,37 @@ void TA_CloseSessionEntryPoint(void __maybe_unused *sess_ctx)
 static TEE_Result inc_value(uint32_t param_types,
 	TEE_Param params[4])
 {
-	uint32_t exp_param_types = TEE_PARAM_TYPES(TEE_PARAM_TYPE_VALUE_INOUT,
-						   TEE_PARAM_TYPE_NONE,
+	uint32_t exp_param_types = TEE_PARAM_TYPES(TEE_PARAM_TYPE_MEMREF_INOUT,
+			TEE_PARAM_TYPE_NONE,
 						   TEE_PARAM_TYPE_NONE,
 						   TEE_PARAM_TYPE_NONE);
-
-	DMSG("has been called");
+	 char tmp[] = "-----BEGIN PUBLIC KEY-----\n\
+              	MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAyIO1L3j9y8FP9Pc7vRZ0\n\
+              	zBU5lW67WMMWiIaNjUgWEjG9we9Agdfn9F6Q/REwINWhBrvJDWZTjObLP/SeS6Nj\n\
+              	8ejKvK0zfXs72Hab3f3KknF+HRSu2PsXiWrlqSWhPzN907fCA3JhkBrnaA6X1uDK\n\
+              	f13n4s6gyIVgzOy4UfLVtc6Tjf9kzgBpFhGcjWERc05ilPwDOM5zIcUr79SJKZTH\n\
+              	t1Vug3RQmuesgfoyLaB0DIH7iD+iY1Pqfw3JfeiZ8vT1x1aQU6ArCr81GDfP+kn0\n\
+              	+DGegTHJzrrICH4j6NId4xAOOiH7zh94XG9MGEi43BHz94ModIrYYEVErkseVU3A\n\
+              	FQIDAQAB\n\
+                -----END PUBLIC KEY-----\n";
+	void *dst;
+	uint32_t siz_of_key ;
+	DMSG("has been called %s", tmp );
 	if (param_types != exp_param_types)
 		return TEE_ERROR_BAD_PARAMETERS;
+	DMSG("[TA] GOT IN TA BUFFER : %s", (char *)params[0].memref.buffer);
 
-	DMSG("Got value: %u from NW", params[0].value.a);
-	params[0].value.a++;
-	DMSG("Increase value to: %u", params[0].value.a);
+	siz_of_key = sizeof(tmp);
+	DMSG("[TA] Size of key is  : %u", siz_of_key);
+
+	dst = TEE_Malloc(siz_of_key, TEE_MALLOC_FILL_ZERO);
+
+	TEE_MemMove(dst, tmp, siz_of_key);
+
+	TEE_MemMove(params[0].memref.buffer, dst, siz_of_key);
+	params[0].memref.size = siz_of_key;
+	DMSG("[TA] SENDING TO HOST : %s", (char *)params[0].memref.buffer);
+
 	return TEE_SUCCESS;
 }
 
@@ -120,23 +141,17 @@ TEE_Result TA_InvokeCommandEntryPoint(void __maybe_unused *sess_ctx,
 			uint32_t param_types, TEE_Param params[4])
 {
 	(void)&sess_ctx; /* Unused parameter */
-
+	DMSG("**************Invoke command EntryPoint");
 	switch (cmd_id) {
-	case TA_HELLO_WORLD_CMD_INC_VALUE:
+	case TA_OPTEE_KEY_CMD_GET_KEY:
 		return inc_value(param_types, params);
 #if 0
-	case TA_HELLO_WORLD_CMD_XXX:
+	case TA_OPTEE_KEY_CMD_GET_KEY_XXX:
 		return ...
 		break;
-	case TA_HELLO_WORLD_CMD_YYY:
-		return ...
-		break;
-	case TA_HELLO_WORLD_CMD_ZZZ:
-		return ...
-		break;
-	...
 #endif
 	default:
 		return TEE_ERROR_BAD_PARAMETERS;
 	}
 }
+
