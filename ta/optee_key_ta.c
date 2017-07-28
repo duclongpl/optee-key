@@ -78,7 +78,7 @@ TEE_Result TA_OpenSessionEntryPoint(uint32_t param_types,
 	 * The DMSG() macro is non-standard, TEE Internal API doesn't
 	 * specify any means to logging from a TA.
 	 */
-	DMSG("Hello World!\n");
+	DMSG("Hello. You are in Secure World!\n");
 
 	/* If return value != TEE_SUCCESS the session will not be created. */
 	return TEE_SUCCESS;
@@ -145,11 +145,6 @@ TEE_Result TA_InvokeCommandEntryPoint(void __maybe_unused *sess_ctx,
 	switch (cmd_id) {
 	case TA_OPTEE_KEY_CMD_GET_KEY:
 		return inc_value(param_types, params);
-#if 0
-	case TA_OPTEE_KEY_CMD_GET_KEY_XXX:
-		return ...
-		break;
-#endif
 	default:
 		return TEE_ERROR_BAD_PARAMETERS;
 	}
