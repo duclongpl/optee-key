@@ -24,8 +24,8 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  */
-#ifndef TA_HELLO_WORLD_H
-#define TA_HELLO_WORLD_H
+#ifndef TA_OPTEE_KEY_H
+#define TA_OPTEE_KEY_H
 
 /* This UUID is generated with uuidgen
    the ITU-T UUID generator at http://www.itu.int/ITU-T/asn1/uuid.html */
@@ -35,4 +35,4 @@
 /* The Trusted Application Function ID(s) implemented in this TA */
 #define TA_OPTEE_KEY_CMD_GET_KEY	0
 
-#endif /*TA_HELLO_WORLD_H*/
+#endif /*TA_OPTEE_KEY_H*/
