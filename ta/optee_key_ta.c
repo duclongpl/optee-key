@@ -25,7 +25,7 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#define STR_TRACE_USER_TA "HELLO_WORLD"
+#define STR_TRACE_USER_TA "SWUPDATE"
 
 #include <tee_internal_api.h>
 #include <tee_internal_api_extensions.h>
@@ -94,22 +94,22 @@ void TA_CloseSessionEntryPoint(void __maybe_unused *sess_ctx)
 	DMSG("Goodbye!\n");
 }
 
-static TEE_Result inc_value(uint32_t param_types,
+static TEE_Result optee_send_key(uint32_t param_types,
 	TEE_Param params[4])
 {
 	uint32_t exp_param_types = TEE_PARAM_TYPES(TEE_PARAM_TYPE_MEMREF_INOUT,
 			TEE_PARAM_TYPE_NONE,
 						   TEE_PARAM_TYPE_NONE,
 						   TEE_PARAM_TYPE_NONE);
+  // char tmp[] = "-----BEGIN PUBLIC KEY-----";
 	 char tmp[] = "-----BEGIN PUBLIC KEY-----\n\
-              	MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAyIO1L3j9y8FP9Pc7vRZ0\n\
-              	zBU5lW67WMMWiIaNjUgWEjG9we9Agdfn9F6Q/REwINWhBrvJDWZTjObLP/SeS6Nj\n\
-              	8ejKvK0zfXs72Hab3f3KknF+HRSu2PsXiWrlqSWhPzN907fCA3JhkBrnaA6X1uDK\n\
-              	f13n4s6gyIVgzOy4UfLVtc6Tjf9kzgBpFhGcjWERc05ilPwDOM5zIcUr79SJKZTH\n\
-              	t1Vug3RQmuesgfoyLaB0DIH7iD+iY1Pqfw3JfeiZ8vT1x1aQU6ArCr81GDfP+kn0\n\
-              	+DGegTHJzrrICH4j6NId4xAOOiH7zh94XG9MGEi43BHz94ModIrYYEVErkseVU3A\n\
-              	FQIDAQAB\n\
-                -----END PUBLIC KEY-----\n";
+	MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAyIO1L3j9y8FP9Pc7vRZ0\n\
+	zBU5lW67WMMWiIaNjUgWEjG9we9Agdfn9F6Q/REwINWhBrvJDWZTjObLP/SeS6Nj\n\
+	8ejKvK0zfXs72Hab3f3KknF+HRSu2PsXiWrlqSWhPzN907fCA3JhkBrnaA6X1uDK\n\
+	f13n4s6gyIVgzOy4UfLVtc6Tjf9kzgBpFhGcjWERc05ilPwDOM5zIcUr79SJKZTH\n\
+	t1Vug3RQmuesgfoyLaB0DIH7iD+iY1Pqfw3JfeiZ8vT1x1aQU6ArCr81GDfP+kn0\n\
+	+DGegTHJzrrICH4j6NId4xAOOiH7zh94XG9MGEi43BHz94ModIrYYEVErkseVU3A\n\
+	FQIDAQAB\n-----END PUBLIC KEY-----\n";
 	void *dst;
 	uint32_t siz_of_key ;
 	DMSG("has been called %s", tmp );
@@ -144,9 +144,8 @@ TEE_Result TA_InvokeCommandEntryPoint(void __maybe_unused *sess_ctx,
 	DMSG("**************Invoke command EntryPoint");
 	switch (cmd_id) {
 	case TA_OPTEE_KEY_CMD_GET_KEY:
-		return inc_value(param_types, params);
+		return optee_send_key(param_types, params);
 	default:
 		return TEE_ERROR_BAD_PARAMETERS;
 	}
 }
-
