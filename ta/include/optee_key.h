@@ -34,5 +34,8 @@
 
 /* The Trusted Application Function ID(s) implemented in this TA */
 #define TA_OPTEE_KEY_CMD_GET_KEY	0
+#define TA_OPTEE_KEY_CMD_WRITE_KEY	1
+#define DEFAULT_CHUNK_SIZE (1 << 10)
+#define DEFAULT_DATA_SIZE (1024)
 
 #endif /*TA_OPTEE_KEY_H*/

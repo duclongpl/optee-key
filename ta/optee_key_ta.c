@@ -34,6 +34,10 @@
 
 #include <string.h>
 #include <stdlib.h>
+
+static uint8_t filename[] = "swupdate-public.pem";
+
+
 /*
  * Called when the instance of the TA is created. This is the first call in
  * the TA.
@@ -94,48 +98,250 @@ void TA_CloseSessionEntryPoint(void __maybe_unused *sess_ctx)
 	DMSG("Goodbye!\n");
 }
 
-static TEE_Result optee_send_key(uint32_t param_types,
+static inline uint32_t tee_time_to_ms(TEE_Time t)
+{
+	return t.seconds * 1000 + t.millis;
+}
+
+static inline uint32_t get_delta_time_in_ms(TEE_Time start, TEE_Time stop)
+{
+	return tee_time_to_ms(stop) - tee_time_to_ms(start);
+}
+
+static TEE_Result prepare_file_to_write(size_t data_size, uint8_t *chunk_buf,
+				size_t chunk_size)
+{
+	size_t remain_bytes = data_size;
+	TEE_Result res = TEE_SUCCESS;
+	TEE_ObjectHandle object;
+
+	res = TEE_CreatePersistentObject(TEE_STORAGE_PRIVATE,
+			filename, sizeof(filename),
+			TEE_DATA_FLAG_ACCESS_READ |
+			TEE_DATA_FLAG_ACCESS_WRITE |
+			TEE_DATA_FLAG_ACCESS_WRITE_META |
+			TEE_DATA_FLAG_OVERWRITE,
+			NULL, NULL, 0, &object);
+	if (res != TEE_SUCCESS) {
+		EMSG("Failed to create persistent object, res=0x%08x",
+				res);
+		goto exit;
+	}
+
+	while (remain_bytes) {
+		size_t write_size;
+
+		if (remain_bytes < chunk_size)
+			write_size = remain_bytes;
+		else
+			write_size = chunk_size;
+		res = TEE_WriteObjectData(object, chunk_buf, write_size);
+		if (res != TEE_SUCCESS) {
+			EMSG("Failed to write data, res=0x%08x", res);
+			goto exit_close_object;
+		}
+		remain_bytes -= write_size;
+	}
+exit_close_object:
+	TEE_CloseObject(object);
+exit:
+	return res;
+}
+
+
+static TEE_Result write_file_secure(TEE_ObjectHandle object, size_t data_size,
+		uint8_t *chunk_buf, size_t chunk_size,
+		uint32_t *spent_time_in_ms)
+{
+	TEE_Time start_time, stop_time;
+	size_t remain_bytes = data_size;
+	TEE_Result res = TEE_SUCCESS;
+
+	TEE_GetSystemTime(&start_time);
+
+	while (remain_bytes) {
+		size_t write_size;
+
+		DMSG("Write data, remain bytes: %zu", remain_bytes);
+		if (chunk_size > remain_bytes)
+			write_size = remain_bytes;
+		else
+			write_size = chunk_size;
+		res = TEE_WriteObjectData(object, chunk_buf, write_size);
+		if (res != TEE_SUCCESS) {
+			EMSG("Failed to write data, res=0x%08x", res);
+			goto exit;
+		}
+		remain_bytes -= write_size;
+	}
+
+	TEE_GetSystemTime(&stop_time);
+
+	*spent_time_in_ms = get_delta_time_in_ms(start_time, stop_time);
+
+	IMSG("start: %u.%u(s), stop: %u.%u(s), delta: %u(ms)",
+			start_time.seconds, start_time.millis,
+			stop_time.seconds, stop_time.millis,
+			*spent_time_in_ms);
+
+exit:
+	return res;
+}
+
+static TEE_Result read_file_secure(TEE_ObjectHandle object, size_t data_size,
+		uint8_t *chunk_buf, size_t chunk_size,
+		uint32_t *spent_time_in_ms)
+{
+	TEE_Time start_time, stop_time;
+	size_t remain_bytes = data_size;
+	TEE_Result res = TEE_SUCCESS;
+	uint32_t read_bytes = 0;
+
+	TEE_GetSystemTime(&start_time);
+
+	while (remain_bytes) {
+		size_t read_size;
+
+		DMSG("Read data, remain bytes: %zu", remain_bytes);
+		if (remain_bytes < chunk_size)
+			read_size = remain_bytes;
+		else
+			read_size = chunk_size;
+		res = TEE_ReadObjectData(object, chunk_buf, read_size,
+				&read_bytes);
+		if (res != TEE_SUCCESS) {
+			EMSG("Failed to read data, res=0x%08x", res);
+			goto exit;
+		}
+
+		remain_bytes -= read_size;
+	}
+
+	TEE_GetSystemTime(&stop_time);
+
+	*spent_time_in_ms = get_delta_time_in_ms(start_time, stop_time);
+
+	IMSG("start: %u.%u(s), stop: %u.%u(s), delta: %u(ms)",
+			start_time.seconds, start_time.millis,
+			stop_time.seconds, stop_time.millis,
+			*spent_time_in_ms);
+
+exit:
+	return res;
+}
+
+static TEE_Result write_key(uint32_t param_types,
 	TEE_Param params[4])
 {
 	uint32_t exp_param_types = TEE_PARAM_TYPES(TEE_PARAM_TYPE_MEMREF_INOUT,
-			TEE_PARAM_TYPE_NONE,
+               TEE_PARAM_TYPE_NONE,
 						   TEE_PARAM_TYPE_NONE,
 						   TEE_PARAM_TYPE_NONE);
-  // char tmp[] = "-----BEGIN PUBLIC KEY-----";
-	 char tmp[] = "-----BEGIN PUBLIC KEY-----\n\
-	MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAyIO1L3j9y8FP9Pc7vRZ0\n\
-	zBU5lW67WMMWiIaNjUgWEjG9we9Agdfn9F6Q/REwINWhBrvJDWZTjObLP/SeS6Nj\n\
-	8ejKvK0zfXs72Hab3f3KknF+HRSu2PsXiWrlqSWhPzN907fCA3JhkBrnaA6X1uDK\n\
-	f13n4s6gyIVgzOy4UfLVtc6Tjf9kzgBpFhGcjWERc05ilPwDOM5zIcUr79SJKZTH\n\
-	t1Vug3RQmuesgfoyLaB0DIH7iD+iY1Pqfw3JfeiZ8vT1x1aQU6ArCr81GDfP+kn0\n\
-	+DGegTHJzrrICH4j6NId4xAOOiH7zh94XG9MGEi43BHz94ModIrYYEVErkseVU3A\n\
-	FQIDAQAB\n-----END PUBLIC KEY-----\n";
-	void *dst;
-	uint32_t siz_of_key ;
-	DMSG("has been called %s", tmp );
+	TEE_Result res;
+	TEE_ObjectHandle object = TEE_HANDLE_NULL;
+	uint8_t *chunk_buf;
+	uint32_t *spent_time_in_ms = &params[2].value.a;
+
 	if (param_types != exp_param_types)
 		return TEE_ERROR_BAD_PARAMETERS;
+
 	DMSG("[TA] GOT IN TA BUFFER : %s", (char *)params[0].memref.buffer);
 
-	siz_of_key = sizeof(tmp);
-	DMSG("[TA] Size of key is  : %u", siz_of_key);
 
-	dst = TEE_Malloc(siz_of_key, TEE_MALLOC_FILL_ZERO);
+	chunk_buf = TEE_Malloc(DEFAULT_CHUNK_SIZE, TEE_MALLOC_FILL_ZERO);
+	if (!chunk_buf) {
+		EMSG("Failed to allocate memory");
+		res = TEE_ERROR_OUT_OF_MEMORY;
+		goto exit;
+	}
 
-	TEE_MemMove(dst, tmp, siz_of_key);
+	TEE_MemMove(chunk_buf, (uint8_t *)params[0].memref.buffer, DEFAULT_DATA_SIZE);
 
-	TEE_MemMove(params[0].memref.buffer, dst, siz_of_key);
-	params[0].memref.size = siz_of_key;
-	DMSG("[TA] SENDING TO HOST : %s", (char *)params[0].memref.buffer);
+	DMSG("message write chunk is : %s", chunk_buf);
 
-	return TEE_SUCCESS;
+	res = prepare_file_to_write(DEFAULT_DATA_SIZE, chunk_buf, DEFAULT_CHUNK_SIZE);
+	if (res != TEE_SUCCESS) {
+		EMSG("Failed to create test file, res=0x%08x",
+				res);
+		goto exit_free_chunk_buf;
+	}
+
+	res = TEE_OpenPersistentObject(TEE_STORAGE_PRIVATE,
+			filename, sizeof(filename),
+			TEE_DATA_FLAG_ACCESS_READ |
+			TEE_DATA_FLAG_ACCESS_WRITE |
+			TEE_DATA_FLAG_ACCESS_WRITE_META |
+			TEE_DATA_FLAG_OVERWRITE,
+			&object);
+	if (res != TEE_SUCCESS) {
+		EMSG("Failed to open persistent object, res=0x%08x",
+				res);
+		goto exit_remove_object;
+	}
+
+	res = write_file_secure(object, DEFAULT_DATA_SIZE, chunk_buf,
+			DEFAULT_CHUNK_SIZE, spent_time_in_ms);
+
+exit_remove_object:
+	TEE_CloseObject(object);
+exit_free_chunk_buf:
+	TEE_Free(chunk_buf);
+exit:
+	return res;
 }
 
-/*
- * Called when a TA is invoked. sess_ctx hold that value that was
- * assigned by TA_OpenSessionEntryPoint(). The rest of the paramters
- * comes from normal world.
- */
+static TEE_Result read_key(uint32_t param_types,
+	TEE_Param params[4])
+{
+	uint32_t exp_param_types = TEE_PARAM_TYPES(TEE_PARAM_TYPE_MEMREF_INOUT,
+			          TEE_PARAM_TYPE_NONE,
+						   TEE_PARAM_TYPE_NONE,
+						   TEE_PARAM_TYPE_NONE);
+	TEE_Result res;
+	TEE_ObjectHandle object = TEE_HANDLE_NULL;
+	uint8_t *chunk_buf;
+	uint32_t *spent_time_in_ms = &params[2].value.a;
+	if (param_types != exp_param_types)
+		return TEE_ERROR_BAD_PARAMETERS;
+
+	DMSG("Start to read test storage");
+
+	chunk_buf = TEE_Malloc(DEFAULT_CHUNK_SIZE, TEE_MALLOC_FILL_ZERO);
+	if (!chunk_buf) {
+		EMSG("Failed to allocate memory");
+		res = TEE_ERROR_OUT_OF_MEMORY;
+		goto exit;
+	}
+
+	res = TEE_OpenPersistentObject(TEE_STORAGE_PRIVATE,
+			filename, sizeof(filename),
+			TEE_DATA_FLAG_ACCESS_READ |
+			TEE_DATA_FLAG_ACCESS_WRITE |
+			TEE_DATA_FLAG_ACCESS_WRITE_META |
+			TEE_DATA_FLAG_OVERWRITE,
+			&object);
+	if (res != TEE_SUCCESS) {
+		EMSG("Failed to open persistent object, res=0x%08x",
+				res);
+		goto exit_remove_object;
+	}
+	res = read_file_secure(object, DEFAULT_DATA_SIZE, chunk_buf,
+			DEFAULT_CHUNK_SIZE, spent_time_in_ms);
+
+	DMSG("message read from secure file is : %s", chunk_buf);
+
+	TEE_MemMove(params[0].memref.buffer, chunk_buf, DEFAULT_DATA_SIZE);
+	params[0].memref.size = DEFAULT_DATA_SIZE;
+	DMSG("[TA] SENDING TO HOST : %s", (char *)params[0].memref.buffer);
+ 
+exit_remove_object:
+	TEE_CloseObject(object);
+	TEE_Free(chunk_buf);
+ 	return TEE_SUCCESS; 
+exit:
+	return res;
+}
+
 TEE_Result TA_InvokeCommandEntryPoint(void __maybe_unused *sess_ctx,
 			uint32_t cmd_id,
 			uint32_t param_types, TEE_Param params[4])
@@ -144,7 +350,9 @@ TEE_Result TA_InvokeCommandEntryPoint(void __maybe_unused *sess_ctx,
 	DMSG("**************Invoke command EntryPoint");
 	switch (cmd_id) {
 	case TA_OPTEE_KEY_CMD_GET_KEY:
-		return optee_send_key(param_types, params);
+		return read_key(param_types, params);
+ 	case TA_OPTEE_KEY_CMD_WRITE_KEY:
+		return write_key(param_types, params);
 	default:
 		return TEE_ERROR_BAD_PARAMETERS;
 	}
