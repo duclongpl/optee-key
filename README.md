@@ -1,7 +1,3 @@
-This is a reference template to start writing a Trusted Application
+This is trusted application based on OP-TEE OS.
 
-Presentation
-------------
-
-This example has been presented at the Linaro Connect USA 2014.
-The slides are available [here](http://www.slideshare.net/linaroorg/lcu14103-how-to-create-and-run-trusted-applications-on-optee).
+The key will be save from normal world to secure world via this application
